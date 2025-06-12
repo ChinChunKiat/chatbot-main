@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG Chatbot</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .chat-container {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            height: 500px;
+            overflow-y: auto;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .message {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .user-message {
+            background-color: #e3f2fd;
+            margin-left: 20%;
+        }
+        .assistant-message {
+            background-color: #f5f5f5;
+            margin-right: 20%;
+        }
+        #chat-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        #upload-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px dashed #ccc;
+            border-radius: 5px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>RAG Chatbot</h1>
+    
+    <div id="upload-section">
+        <h3>Upload Knowledge Base</h3>
+        <input type="file" id="file-upload" accept=".txt">
+        <button onclick="uploadFile()">Upload</button>
+        <p id="upload-status"></p>
+    </div>
+    
+    <div class="chat-container" id="chat-container">
+        <!-- Messages will appear here -->
+    </div>
+    
+    <input type="text" id="chat-input" placeholder="Ask a question..." onkeypress="handleKeyPress(event)">
+    
+    <script>
+        let messages = [];
+        
+        function uploadFile() {
+            const fileInput = document.getElementById('file-upload');
+            const statusElement = document.getElementById('upload-status');
+            
+            if (!fileInput.files.length) {
+                statusElement.textContent = "Please select a file first";
+                return;
+            }
+            
+            statusElement.textContent = "Uploading and processing...";
+            statusElement.style.color = "blue";
+            
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => Promise.reject(err));
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                statusElement.textContent = "Ready to chat!";
+                statusElement.style.color = "green";
+                messages = [];
+                document.getElementById('chat-container').innerHTML = '';
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                statusElement.textContent = `Error: ${error.message || 'Processing failed'}`;
+                statusElement.style.color = "red";
+            });
+        }
+        
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+        
+        function sendMessage() {
+            const inputElement = document.getElementById('chat-input');
+            const message = inputElement.value.trim();
+            
+            if (!message) return;
+            
+            // Add user message to chat
+            addMessage('user', message);
+            inputElement.value = '';
+            
+            // Send to server and get response
+            fetch('/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ prompt: message })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    addMessage('assistant', data.error);
+                } else {
+                    addMessage('assistant', data.response);
+                }
+            })
+            .catch(error => {
+                addMessage('assistant', 'Error communicating with the server');
+                console.error('Error:', error);
+            });
+        }
+        
+        function addMessage(role, content) {
+            messages.push({ role, content });
+            
+            const chatContainer = document.getElementById('chat-container');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}-message`;
+            messageDiv.textContent = content;
+            chatContainer.appendChild(messageDiv);
+            
+            // Scroll to bottom
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+    </script>
+</body>
+</html>
